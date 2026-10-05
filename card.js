@@ -260,11 +260,13 @@ function drawMemberCard(ctx, d, baseAt = false) {
   // 標題列
   ctx.textAlign = 'center';
   ctx.fillStyle = C.ink;
-  ctx.font = `900 ${U(62)}px ${FONT}`;
-  ctx.fillText('登船成員', x + w / 2, y + U(76));
+  // textBaseline 統一設 alphabetic，並讓主標與副標的行距由字級推導，
+// 避免改字級時兩行重疊（實測踩過：副標被主標壓住）。
+ctx.font = `900 ${U(62)}px ${FONT}`;
+  ctx.fillText('登船成員', x + w / 2, y + U(78));
   ctx.font = `700 ${U(20)}px Arial, sans-serif`;
   ctx.fillStyle = 'rgba(21,23,28,.55)';
-  ctx.fillText('CREW MEMBER', x + w / 2, y + U(104));
+  ctx.fillText('CREW MEMBER', x + w / 2, y + U(122));
 
   // 兩欄位
   const fields = [
@@ -274,9 +276,12 @@ function drawMemberCard(ctx, d, baseAt = false) {
   // 關鍵：欄位高度由「卡片可用高度」反推，不要寫死數字。
   // 陷阱：h 已經是「輸出座標」，所以扣除量也必須是輸出座標，
   //      混用底圖單位會算出負數/極小值（實測踩過）。
+  // 另一個陷阱：headH 是標題區高度（主標 + 副標），
+  //      改字級時必須同步放大，否則副標會被主標壓住（實測踩過）。
   const gap = U(16);
-  const fh = (h - U(108) - U(24) - gap) / fields.length;
-  let fy = y + U(108);
+  const headH = U(148);
+  const fh = (h - headH - U(24) - gap) / fields.length;
+  let fy = y + headH;
   for (const [zh, en, val, right] of fields) {
     ctx.strokeStyle = C.ink; ctx.lineWidth = U(5);
     rr(ctx, x + U(28), fy, w - U(56), fh, U(14)); ctx.stroke();

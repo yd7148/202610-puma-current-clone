@@ -305,7 +305,139 @@ A=584071  B=576039  相同=false
 
 ---
 
-## 十、這一章的教學價值
+## 十、GitHub Pages 部署與驗證
+
+### 10.1 部署
+
+```powershell
+gh api -X POST repos/yd7148/202610-puma-current-clone/pages `
+  -f "source[branch]=main" -f "source[path]=/"
+```
+
+回應重點：
+
+```json
+{
+  "html_url": "https://yd7148.github.io/202610-puma-current-clone/",
+  "build_type": "legacy",
+  "https_enforced": true,
+  "status": "built"
+}
+```
+
+另新增 `.nojekyll`，避免 Pages 對 `_` 開頭檔案套用 Jekyll 處理。
+
+### 10.2 部署狀態驗證（通過）
+
+```mermaid
+flowchart LR
+  A[push] --> B[Pages build]
+  B --> C[gh api pages/builds/latest]
+  C -->|try1| D[building]
+  D -->|try2| D
+  D -->|try3| E["built<br/>commit 902ecba"]
+  E --> F[部署成功]
+```
+
+### 10.3 線上實測失敗 — 網域被公司代理封鎖
+
+```mermaid
+flowchart TD
+  A[嘗試連線 yd7148.github.io] --> B[curl 全部回傳 000]
+  B --> C{對照組檢查}
+  C --> D[github.com → 200]
+  C --> E[api.github.com → 200]
+  C --> F[pages.github.com → 200]
+  C --> G[yd7148.github.io/cv1 → 000]
+  C --> H[TCP443 直連 github.io → False]
+  D & E & F --> I["結論：GitHub API 正常"]
+  G & H --> J["結論：github.io 整片封鎖"]
+```
+
+**實測資料**
+
+| 網址 | 回傳 |
+|---|---|
+| `https://yd7148.github.io/202610-puma-current-clone/` | `000` |
+| `https://yd7148.github.io/cv1/`（既有已上線個人頁） | `000` |
+| `https://yd7148.github.io/` | `000` |
+| `https://github.com/yd7148/202610-puma-current-clone` | `200` |
+| `https://pages.github.com/` | `200` |
+| TCP 443 直連 `yd7148.github.io` | `False` |
+
+**判斷**：連既有早已上線的 `cv1` 也是 `000`，代表 `*.github.io` 整片在公司代理白名單之外，
+**與本次部署無關**。此為已驗證的網路限制，非部署失敗。
+
+### 10.4 替代驗證：路徑模擬
+
+無法連線時，改驗證 Pages 部署真正的技術風險 —— **子路徑部署**。
+Pages 網站根在 `/202610-puma-current-clone/`，程式內只要有任何絕對路徑（`/style.css`）就會 404。
+
+```mermaid
+flowchart TD
+  A["建立 _pagetest/202610-puma-current-clone/<br/>完全複製 repo 內容"] --> B["模擬 Pages 子路徑結構"]
+  B --> C["_pages-sim.js<br/>正確 MIME + 404 + 防目錄穿越"]
+  C --> D["curl 檢查 7 個資源"]
+  D --> E{全部 200?}
+  E -->|是| F["子路徑部署無風險"]
+  E -->|否| G["需修正絕對路徑"]
+```
+
+**curl 結果**
+
+| 路徑 | 狀態 | Content-Type |
+|---|---|---|
+| `/` | 200 | `text/html; charset=utf-8` |
+| `compare.html` | 200 | `text/html; charset=utf-8` |
+| `style.css` | 200 | `text/css; charset=utf-8` |
+| `card.js` | 200 | `text/javascript; charset=utf-8` |
+| `art.js` | 200 | `text/javascript; charset=utf-8` |
+| `assets.js` | 200 | `text/javascript; charset=utf-8` |
+| `1.png` | 200 | `image/png` |
+
+`git grep -nE '(src|href)="/' -- '*.html'` 無任何結果 → 全部資源皆為相對路徑。
+
+**瀏覽器實測（子路徑）**
+
+```
+stripVar : url("data:image/svg+xml,%3Csvg     ← 跑馬燈 tile 注入成功
+waveVar  : url("data:image/svg+xml,%3Csvg     ← 波浪背景注入成功
+chipCount: 7                                    ← JS 模組完整執行
+console  : 0 errors
+```
+
+四種組合（底圖 × A/B）皆產出不同圖檔：
+
+```
+baseOn+artA  => changed:true, state:ready
+baseOn+artB  => changed:true, state:ready
+baseOff+artA => changed:true, state:ready
+baseOff+artB => changed:true, state:ready
+```
+
+### 10.5 驗證過程中修掉的 3 個真實 bug
+
+```mermaid
+flowchart LR
+  subgraph P["問題與處置"]
+    P1["baseOn 與 baseOff 同時未選中<br/>id.includes 字串分組互含"] --> F1["改用 data-group 屬性分組"]
+    P2["畫面卡在 loading、src 長度 0<br/>generate 無防重入，兩次 render 交錯"] --> F2["加入 busy 旗標 + try/catch/finally"]
+    P3["CREW MEMBER 被登船成員壓住<br/>改欄位反推時標題區高度寫死過小"] --> F3["抽出 headH，主標 y+78 副標 y+122"]
+  end
+```
+
+| # | 症狀 | 根因 | 修法 |
+|---|---|---|---|
+| P1 | `baseOn` 與 `baseOff` 同時呈現未選中 | 用 `id.includes('base')` 分組，兩者互含 | 改用顯式 `data-group` |
+| P2 | 畫面卡在 `loading`，`src` 長度 0 | 切換與按鈕點擊都觸發重繪，`gen` 無防重入 | `busy` 旗標 + `try/catch/finally` |
+| P3 | 「CREW MEMBER」被「登船成員」壓住疊字 | 欄位高度改反推時，標題區高度寫死 108 不符實際 | 抽出 `headH = U(148)` |
+
+> P1、P2 是**只有在互動時才會暴露**的缺陷，先前靜態截圖檢查完全看不出來。
+> 這是「部署後測試」的價值 —— 靜態產出正確 ≠ 互動正確。
+
+---
+
+## 十一、這一章的教學價值
 
 ### 10.1 四大核心技巧
 
@@ -344,7 +476,7 @@ flowchart TD
 
 ---
 
-## 十一、改善對策
+## 十二、改善對策
 
 ### 立即
 
@@ -369,7 +501,7 @@ flowchart TD
 
 ---
 
-## 十二、執行方式
+## 十三、執行方式
 
 ```powershell
 node _dev-server.js        # http://127.0.0.1:8899
@@ -380,7 +512,7 @@ node _dev-server.js        # http://127.0.0.1:8899
 
 ---
 
-## 十三、附錄
+## 十四、附錄
 
 ### 診斷指令
 

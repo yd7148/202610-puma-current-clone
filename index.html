@@ -37,11 +37,11 @@
 
   <div class="toggles">
     <span class="tg-label">插畫版本</span>
-    <button class="tg" id="artA" aria-pressed="true">A 木刻墨線</button>
-    <button class="tg" id="artB" aria-pressed="false">B 幾何扁平</button>
+    <button class="tg" data-group="art" id="artA" aria-pressed="true">A 木刻墨線</button>
+    <button class="tg" data-group="art" id="artB" aria-pressed="false">B 幾何扁平</button>
     <span class="tg-label">底圖</span>
-    <button class="tg" id="baseOff" aria-pressed="true">純向量</button>
-    <button class="tg" id="baseOn" aria-pressed="false">用 1.png</button>
+    <button class="tg" data-group="base" id="baseOff" aria-pressed="true">純向量</button>
+    <button class="tg" data-group="base" id="baseOn" aria-pressed="false">用 1.png</button>
   </div>
 
   <button class="btn" id="gen" disabled>領取船員證</button>
@@ -110,45 +110,60 @@ function check() {
 $('name').oninput = check;
 
 // ---- A/B 切換：改了要重畫預覽 ----
-function bindToggle(id, apply) {
+// 教訓：分組要顯式用 data-group，不要用 id 字串比對，
+//       否則 baseOn / baseOff 會互相把對方也留成未選中。
+function bindToggle(id, group, apply) {
   $(id).onclick = () => {
     apply();
-    // 同組的另一顆按鈕取消選中
-    const group = $(id).parentElement;
-    for (const b of group.querySelectorAll('.tg')) {
-      if (!b.id.includes(id.match(/^(art|base)(A|B|On|Off)/)[1])) b.setAttribute('aria-pressed', 'false');
+    for (const b of document.querySelectorAll(`.tg[data-group="${group}"]`)) {
+      b.setAttribute('aria-pressed', String(b.id === id));
     }
-    $(id).setAttribute('aria-pressed', 'true');
-    if ($('result').hidden === false) $('gen').click();
+    // 只有已經產生過才重繪（第一次是空的，先讓使用者填表）
+    if (!$('result').hidden) generate();
   };
 }
-bindToggle('artA', () => OPT.art = 'a');
-bindToggle('artB', () => OPT.art = 'b');
-bindToggle('baseOff', () => OPT.base = false);
-bindToggle('baseOn', () => OPT.base = !!baseImg);
+bindToggle('artA', 'art', () => OPT.art = 'a');
+bindToggle('artB', 'art', () => OPT.art = 'b');
+bindToggle('baseOff', 'base', () => OPT.base = false);
+bindToggle('baseOn', 'base', () => OPT.base = !!baseImg);
 
-$('gen').onclick = async () => {
+// 防重入：切換與按鈕點擊可能同時觸發。
+// 沒有這面旗標會出現「兩次 render 交錯，狀態被舊的那次覆蓋」。
+let busy = false;
+async function generate() {
+  if (busy) return;
+  const name = $('name').value.trim().slice(0, 12);
+  if (!name || !fleet) return;
+
+  busy = true;
   $('gen').disabled = true;
   $('gen').textContent = '領取中…';
   $('result').hidden = false;
   $('frame').dataset.state = 'loading';
+  try {
+    const serial = String(Math.floor(Math.random() * 900000) + 100000);
+    await renderCard(canvas, { name, fleet, serial }, OPT);
 
-  const serial = String(Math.floor(Math.random() * 900000) + 100000);
-  await renderCard(canvas, { name: $('name').value.trim().slice(0, 12), fleet, serial }, OPT);
-
-  lastBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
-  lastUrl = URL.createObjectURL(lastBlob);
-  // 陷阱：img.decode() 在「圖片已完成載入」時可能永不 resolve，
-  // 會讓整條 await 鏈卡死。先用 complete 判斷，未完成才 decode。
-  const img = $('cardImg');
-  img.src = lastUrl;
-  if (!img.complete) await new Promise(res => { img.onload = img.onerror = res; });
-  $('frame').dataset.state = 'ready';
-
-  $('gen').disabled = false;
-  $('gen').textContent = '領取船員證';
-  toast('船員證領取完成');
-};
+    lastBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+    lastUrl = URL.createObjectURL(lastBlob);
+    // 陷阱：img.decode() 在「圖片已完成載入」時可能永不 resolve，
+    // 會讓整條 await 鏈卡死。先用 complete 判斷，未完成才等 load 事件。
+    const img = $('cardImg');
+    img.src = lastUrl;
+    if (!img.complete) await new Promise(res => { img.onload = img.onerror = res; });
+    $('frame').dataset.state = 'ready';
+    toast('船員證領取完成');
+  } catch (err) {
+    $('frame').dataset.state = 'error';
+    toast('產生失敗：' + (err && err.message || err));
+    console.error(err);
+  } finally {
+    busy = false;
+    $('gen').disabled = false;
+    $('gen').textContent = '領取船員證';
+  }
+}
+$('gen').onclick = generate;
 
 $('dl').onclick = () => {
   if (!lastUrl) return;
