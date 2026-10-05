@@ -1,0 +1,262 @@
+/* ============================================================
+   台北大洋流 復刻 — Design Tokens + Shell
+   設計系統拆解復刻示範（非官方）
+   ============================================================ */
+
+:root {
+  /* ---- 1. 色彩系統：只取 5 色，全部語意化命名 ---- */
+  --orange: #ea611d;   /* 主色 / 品牌底 */
+  --cream:  #f4efe6;   /* 卡片紙感底 */
+  --ink:    #15171c;   /* 文字 + 粗框線 */
+  --sea:    #03615a;
+  --sand:   #ffe08a;
+  --line:   #06c755;   /* LINE 綠（僅登入按鈕） */
+
+  /* ---- 2. 間距 / 圓角 / 邊框：整站只有 3 種粗細 ---- */
+  --bw: 3px;           /* 卡片粗框 */
+  --bw-thin: 2px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-pill: 999px;
+
+  /* ---- 3. 招牌陰影：這站的靈魂 ---- */
+  /*     不是模糊陰影，是「實心硬陰影」，按壓時位移 = 物理下沉 */
+  --shadow-hard: 6px 6px 0 var(--ink);
+  --shadow-press: 1px 1px 0 var(--ink);
+  --shadow-float: 0 6px 18px rgba(0,0,0,.25);
+
+  /* ---- 4. 字體：思源黑體族，重到 900 ---- */
+  --font: "PingFang TC", "Noto Sans TC", "Source Han Sans TW",
+          system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html { height: 100%; background: var(--ink); }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--orange);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   5. 跑馬燈條（上下）
+   技巧：用 background-position 動畫，而不是改 transform。
+   必須讓「動畫位移 == 貼圖寬度」，才會無縫循環。
+   ============================================================ */
+.bar {
+  flex: none;
+  height: 34px;
+  background: #000 var(--strip) repeat-x left center / auto 100%;
+  animation: marquee 17s linear infinite;
+}
+@keyframes marquee {
+  from { background-position-x: 0; }
+  to   { background-position-x: var(--strip-w); }
+}
+
+/* ============================================================
+   6. 旗幟感流動背景
+   技巧：兩層不同「tile 尺寸 + 速度 + 模糊」的 SVG 波浪，
+   做 2.5D 視差。原站：520x1400 / 16s，780x2000 / 27s。
+   ============================================================ */
+.flag-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  animation: breathe 6s ease-in-out infinite alternate;
+}
+@keyframes breathe { from { opacity:.82 } to { opacity:1 } }
+
+.flag-bg i {
+  position: absolute;
+  top: 0; left: 0;
+  background-repeat: repeat;
+  will-change: transform;
+}
+.flag-bg i:nth-child(1) {
+  width: calc(100% + 520px);
+  height: calc(100% + 1400px);
+  background-image: var(--wave-a);
+  background-size: 520px 1400px;
+  animation: flow-a 16s linear infinite;
+}
+.flag-bg i:nth-child(2) {
+  width: calc(100% + 780px);
+  height: calc(100% + 2000px);
+  background-image: var(--wave-b);
+  background-size: 780px 2000px;
+  animation: flow-b 27s linear infinite;
+}
+@keyframes flow-a { from { transform: translate(0,0) }        to { transform: translate(-520px,-1400px) } }
+@keyframes flow-b { from { transform: translate(-780px,0) }  to { transform: translate(0,-2000px) } }
+
+/* ============================================================
+   7. 桌機：把手機版面「框起來」
+   技巧：body 變成固定 430px 手機殼，背景轉黑 + 三重邊框，
+   營造裝置感而不是把版面拉寬。
+   ============================================================ */
+@media (min-width: 600px) {
+  body {
+    width: 430px;
+    max-width: 430px;
+    margin: 0 auto;
+    box-shadow: 0 0 0 3px #000, 0 30px 80px rgba(0,0,0,.5);
+  }
+  .flag-bg { width: 430px; left: 50%; transform: translateX(-50%); }
+}
+
+/* ============================================================
+   8. 版面骨架
+   ============================================================ */
+.page {
+  flex: 1;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 18px clamp(16px, 5.9vw, 22px) 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* 標題：兩側用 mask 貼「浪」符號，右側水平鏡射 */
+.page-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: clamp(21px, 7vw, 26px);
+  font-weight: 900;
+  letter-spacing: .08em;
+  -webkit-text-stroke: .5px currentColor;
+  paint-order: stroke fill;
+}
+.page-title::before, .page-title::after {
+  content: "";
+  flex: none;
+  width: 1.55em; height: .62em;
+  background: currentColor;
+  mask: var(--wave-mark) no-repeat center / contain;
+}
+.page-title::after { transform: scaleX(-1); }
+
+.lead { margin: 0; font-size: 15px; line-height: 1.75; font-weight: 500; text-align: center; }
+
+/* ============================================================
+   9. 卡片 & 按鈕
+   ============================================================ */
+.card {
+  width: 100%;
+  padding: 18px;
+  background: var(--cream);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-hard);
+}
+.card h2 { margin: 0 0 4px; font-size: 18px; font-weight: 900; letter-spacing: .06em; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 32px;
+  border: 0; border-radius: var(--r-pill);
+  background: var(--ink); color: var(--cream);
+  font: inherit; font-size: 17px; font-weight: 800; letter-spacing: .1em;
+  cursor: pointer; text-decoration: none;
+  box-shadow: var(--shadow-float);
+  transition: transform .08s, box-shadow .08s;
+}
+.btn:disabled { opacity: .4; box-shadow: none; cursor: default; }
+.btn.line { background: var(--line); }
+.btn.light { background: var(--cream); color: var(--ink); }
+.btn.ghost { background: transparent; color: var(--ink); border: var(--bw-thin) solid var(--ink); box-shadow: none; }
+.btn:active:not(:disabled) { transform: translate(2px,2px); }
+
+/* 艦隊選擇：grid chip，選中反白 */
+.chips { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.chip {
+  padding: 14px 6px;
+  border: var(--bw-thin) solid var(--ink);
+  border-radius: var(--r-sm);
+  background: #fff; color: var(--ink);
+  font: inherit; cursor: pointer;
+  text-align: center;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--cream); }
+.chip.wide { grid-column: 1 / -1; }
+
+.lbl { display: block; margin: 14px 0 6px; font-size: 13px; font-weight: 700; letter-spacing: .12em; }
+.field {
+  width: 100%; padding: 12px 14px;
+  border: var(--bw-thin) solid var(--ink); border-radius: var(--r-sm);
+  background: #fff; font: inherit; font-size: 17px; color: var(--ink); outline: none;
+}
+.field:focus { box-shadow: 0 0 0 3px rgba(234,97,29,.4); }
+.note { margin: 8px 0 0; font-size: 12px; line-height: 1.65; opacity: .7; }
+
+/* 步驟指示 */
+.steps { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none;
+  font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.steps li { padding: 5px 10px; border: var(--bw-thin) solid var(--ink);
+  border-radius: var(--r-pill); opacity: .45; white-space: nowrap; }
+.steps li[aria-current] { background: var(--ink); color: var(--cream); opacity: 1; }
+
+/* 9:16 預覽框 */
+.cardFrame {
+  position: relative;
+  width: min(100%, calc(72vh * 9 / 16));
+  aspect-ratio: 9 / 16;
+  border: var(--bw) solid var(--ink);
+  border-radius: 12px; overflow: hidden; background: var(--cream);
+}
+.cardFrame img { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity .3s; }
+.cardFrame[data-state="ready"] img { opacity: 1; }
+.cardFrame .ph { position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 14px; font-weight: 700; opacity: .55; }
+.cardFrame[data-state="ready"] .ph { display: none; }
+
+/* A/B 切換列 */
+.toggles {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  justify-content: center;
+}
+.tg-label {
+  font-size: 12px; font-weight: 800; letter-spacing: .1em;
+  opacity: .65; margin-left: 6px;
+}
+.tg {
+  padding: 8px 14px;
+  border: var(--bw-thin) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: transparent; color: var(--ink);
+  font: inherit; font-size: 13px; font-weight: 800; letter-spacing: .06em;
+  cursor: pointer;
+}
+.tg[aria-pressed="true"] { background: var(--ink); color: var(--cream); }
+
+/* Toast */
+.toast {
+  position: fixed; left: 50%; bottom: 60px; z-index: 30;
+  transform: translateX(-50%);
+  padding: 10px 16px; border-radius: var(--r-pill);
+  background: rgba(21,23,28,.92); color: var(--cream);
+  font-size: 14px; white-space: nowrap; opacity: 0;
+  transition: opacity .3s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar, .flag-bg, .flag-bg i { animation: none !important; }
+}

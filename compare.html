@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>A/B 比較｜帆船 & 錨</title>
+<style>
+  body{margin:0;background:#15171c;color:#f4efe6;font-family:"PingFang TC","Noto Sans TC",system-ui,sans-serif}
+  h1{font-size:20px;padding:16px 20px;margin:0;letter-spacing:.08em}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 20px 26px}
+  .cell{background:#ea611d;border:3px solid #f4efe6;border-radius:14px;padding:10px}
+  .cell h2{margin:0 0 8px;font-size:15px;letter-spacing:.06em}
+  canvas{display:block;width:100%;height:auto;background:#f4efe6;border-radius:8px}
+  .tag{display:inline-block;background:#15171c;color:#f4efe6;border-radius:99px;
+        padding:3px 10px;font-size:12px;font-weight:800;margin-right:6px}
+</style>
+</head>
+<body>
+<h1><span class="tag">A</span>木刻墨線 · stroke 主導、抖動線、乾刷紋　　<span class="tag">B</span>幾何扁平 · fill 主導、錯色塊假造立體</h1>
+<div class="row">
+  <div class="cell"><h2>A 版 — 帆船</h2><canvas id="boatA" width="1160" height="680"></canvas></div>
+  <div class="cell"><h2>B 版 — 帆船</h2><canvas id="boatB" width="1160" height="680"></canvas></div>
+  <div class="cell"><h2>A 版 — 錨</h2><canvas id="ancA" width="400" height="480"></canvas></div>
+  <div class="cell"><h2>B 版 — 錨</h2><canvas id="ancB" width="400" height="480"></canvas></div>
+</div>
+
+<script type="module">
+import { ART, svgToURL, drawSVGImage } from './art.js';
+
+async function mount(canvasId, svg, bg) {
+  const c = document.getElementById(canvasId);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, c.width, c.height);
+  const img = await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = svgToURL(svg); });
+  drawSVGImage(ctx, img, 0, 0, c.width, c.height);
+  return c;
+}
+await mount('boatA', ART.boat.a(), '#ea611d');
+await mount('boatB', ART.boat.b(), '#ea611d');
+await mount('ancA',  ART.anchor.a(), '#ea611d');
+await mount('ancB',  ART.anchor.b(), '#ea611d');
+window.__ready = true;
+</script>
+</body>
+</html>
